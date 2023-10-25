@@ -9,5 +9,7 @@
   "author": "Taras Baran <taras.baran@devico.io>",
   "license": "ISC",
   "repository": "git@github.com:barantarasdev/todo-list-backend.git",
-  "dependencies": {}
+  "dependencies": {
+    "dotenv": "^16.3.1"
+  }
 }
