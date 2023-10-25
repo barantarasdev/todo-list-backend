@@ -1,0 +1,12 @@
+[
+  {
+    "userId": 1,
+    "name": "Taras",
+    "email": "t@t.com",
+    "password": "123",
+    "phone": "78798797978",
+    "age": "33",
+    "gender": "m",
+    "site": "http://fsdsdfsdurl.com"
+  }
+]
