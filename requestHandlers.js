@@ -1,9 +1,11 @@
 const fs = require("fs");
 const jwt = require('jsonwebtoken')
+const bcrypt = require('bcrypt');
 
 const usersPath = './users.json'
 const todosPath = './todos.json'
 let refreshTokens = [];
+const SALT_ROUNDS = 10;
 
 function getReadFile(filePath) {
   try {
@@ -42,6 +44,10 @@ function setNewFile(filePath, newData) {
   }
 }
 
+function findUser(users, email) {
+  return users.find((user) => email === user.email)
+}
+
 function verifyToken(req, res, next) {
   const bearerHeader = req.headers['authorization']
   const token = bearerHeader && bearerHeader.split(' ')[1];
@@ -68,7 +74,7 @@ function generateAccessToken(user) {
 function handleRegister(res, data, USERS) {
   const parsedRegisterData = JSON.parse(data)
 
-  const foundUser = USERS.find(({email}) => email === parsedRegisterData.email)
+  const foundUser = findUser(USERS, parsedRegisterData.email)
 
   if (foundUser) {
     res.statusCode = 409
@@ -76,14 +82,27 @@ function handleRegister(res, data, USERS) {
     return res.end()
   }
 
-  const accessToken = generateAccessToken(parsedRegisterData);
-  const refreshToken = jwt.sign(parsedRegisterData, process.env.REFRESH_SECRET_KEY);
+  bcrypt.hash(parsedRegisterData.password, SALT_ROUNDS, function(err, hash) {
+    if (err) {
+      res.statusCode = 500;
+      return res.end();
+    }
 
-  refreshTokens.push(refreshToken)
-  setNewValue(usersPath, parsedRegisterData)
+    const userWithHashedPassword = {
+      ...parsedRegisterData,
+      password: hash
+    };
 
-  res.statusCode = 201
-  return res.end(JSON.stringify({accessToken, refreshToken}))
+    setNewValue(usersPath, userWithHashedPassword)
+
+    const accessToken = generateAccessToken(parsedRegisterData);
+    const refreshToken = jwt.sign(parsedRegisterData, process.env.REFRESH_SECRET_KEY);
+
+    refreshTokens.push(refreshToken)
+
+    res.statusCode = 201
+    return res.end(JSON.stringify({accessToken, refreshToken}))
+  });
 }
 
 function handleNewTodo(res, req, data) {
@@ -162,19 +181,31 @@ function handleRefreshToken(res, req) {
 
 function handleLogin(res, req, data, USERS) {
   const parsedLoginData = JSON.parse(data)
-  const foundUser = USERS.find(({email, password}) => email === parsedLoginData.email && password === parsedLoginData.password)
+  const foundUser = findUser(USERS, parsedLoginData.email)
 
-  if (foundUser) {
-    const accessToken = generateAccessToken(foundUser)
-    const refreshToken = jwt.sign(foundUser, process.env.REFRESH_SECRET_KEY)
-    refreshTokens.push(refreshToken);
-
-    res.statusCode = 200
-    return res.end(JSON.stringify({accessToken, refreshToken, name: foundUser.name, userId: foundUser.userId}))
+  if (!foundUser) {
+    res.statusCode = 401
+    return res.end(JSON.stringify({message: "Not found user"}))
   }
 
-  res.statusCode = 401
-  return res.end(JSON.stringify({message: "Not found user"}))
+  bcrypt.compare(parsedLoginData.password, foundUser.password, (err, isMatch) => {
+    if (err) {
+      res.statusCode = 500;
+      return res.end(JSON.stringify({ message: 'Internal server error' }));
+    }
+
+    if (!isMatch) {
+      res.statusCode = 401;
+      return res.end(JSON.stringify({message: "Invalid credentials"}));
+    }
+
+    const accessToken = generateAccessToken(foundUser);
+    const refreshToken = jwt.sign(foundUser, process.env.REFRESH_SECRET_KEY);
+    refreshTokens.push(refreshToken);
+
+    res.statusCode = 200;
+    return res.end(JSON.stringify({accessToken, refreshToken, name: foundUser.name, userId: foundUser.userId}))
+  })
 }
 
 function handleLogout(res, req) {
