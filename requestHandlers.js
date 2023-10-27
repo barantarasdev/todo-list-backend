@@ -1,7 +1,9 @@
 const fs = require("fs");
+const jwt = require('jsonwebtoken')
 
 const usersPath = './users.json'
 const todosPath = './todos.json'
+let refreshTokens = [];
 
 function getReadFile(filePath) {
   try {
@@ -40,26 +42,33 @@ function setNewFile(filePath, newData) {
   }
 }
 
-function handleLogin(res, data, USERS, TODOS) {
-  const parsedLoginData = JSON.parse(data)
-  const foundUser = USERS.find(({email, password}) => email === parsedLoginData.email && password === parsedLoginData.password)
+function verifyToken(req, res, next) {
+  const bearerHeader = req.headers['authorization']
+  const token = bearerHeader && bearerHeader.split(' ')[1];
 
-  if (foundUser) {
-    const currentTodos = TODOS.filter(({userId}) => userId === foundUser.userId)
-
-    res.statusCode = 200
-
-    return res.end(JSON.stringify({user: foundUser, todos: currentTodos}))
+  if (!token) {
+    res.statusCode = 401
+    return res.end()
   }
 
-  res.statusCode = 401
-  return res.end()
+  jwt.verify(token, process.env.ACCESS_SECRET_KEY, (err) => {
+    if (err) {
+      res.statusCode = 403
+      return res.end()
+    }
+
+    next()
+  })
+}
+
+function generateAccessToken(user) {
+  return  jwt.sign(user, process.env.ACCESS_SECRET_KEY, {expiresIn: '25s'})
 }
 
 function handleRegister(res, data, USERS) {
   const parsedRegisterData = JSON.parse(data)
 
-  const foundUser = USERS.find(({email, password}) => email === parsedRegisterData.email)
+  const foundUser = USERS.find(({email}) => email === parsedRegisterData.email)
 
   if (foundUser) {
     res.statusCode = 409
@@ -67,52 +76,113 @@ function handleRegister(res, data, USERS) {
     return res.end()
   }
 
+  const accessToken = generateAccessToken(parsedRegisterData);
+  const refreshToken = jwt.sign(parsedRegisterData, process.env.REFRESH_SECRET_KEY);
+
+  refreshTokens.push(refreshToken)
   setNewValue(usersPath, parsedRegisterData)
-  res.statusCode = 201
 
-  return res.end(JSON.stringify({message: 'Success'}))
+  res.statusCode = 201
+  return res.end(JSON.stringify({accessToken, refreshToken}))
 }
 
-function handleNewTodo(res, data) {
-  const parsedData = JSON.parse(data)
+function handleNewTodo(res, req, data) {
+  verifyToken(req, res, () => {
+    const parsedData = JSON.parse(data)
 
-  setNewValue(todosPath, parsedData)
-  res.statusCode = 201
+    setNewValue(todosPath, parsedData)
 
-  return res.end(JSON.stringify({message: 'Success'}))
-}
-
-function handleGetTodos(res, req, TODOS) {
-  const id = +req.url.split('/').pop()
-  const filteredTodos = TODOS.filter(({userId}) => userId === id)
-
-  res.statusCode = 200
-
-  return res.end(JSON.stringify({todos: filteredTodos}))
+    res.statusCode = 201
+    return res.end(JSON.stringify({message: 'Success'}))
+  })
 }
 
 function handleChangeTodo(res, req, data, TODOS) {
-  const id = +req.url.split('/').pop()
+  verifyToken(req, res, () => {
+    const id = +req.url.split('/').pop()
 
-  switch (req.method) {
-    case 'PATCH':
-      const parsedData = JSON.parse(data)
-      const newTodos = TODOS.map(todo => todo.id === id ? {...todo, ...parsedData} : todo)
-      setNewFile(todosPath, newTodos)
+    switch (req.method) {
+      case 'PATCH':
+        const parsedData = JSON.parse(data)
+        const newTodos = TODOS.map(todo => todo.id === id ? {...todo, ...parsedData} : todo)
+        setNewFile(todosPath, newTodos)
 
-      res.statusCode = 200
+        res.statusCode = 200
+        return res.end(JSON.stringify({message: 'Success'}))
+      case 'DELETE':
+        const filteredTodo = TODOS.filter(todo => todo.id !== id)
+        setNewFile(todosPath, filteredTodo)
 
-      return res.end(JSON.stringify({message: 'Success'}))
-    case 'DELETE':
-      const filteredTodo = TODOS.filter(todo => todo.id !== id)
-      setNewFile(todosPath, filteredTodo)
+        res.statusCode = 200
+        return res.end(JSON.stringify({message: 'Success'}))
+      default:
+        return res.end();
+    }
+  })
+}
 
-      res.statusCode = 200
+function handleGetTodos(res, req, TODOS) {
+  verifyToken(req, res, () => {
+    const id = +req.url.split('/').pop()
+    const filteredTodos = TODOS.filter(({userId}) => userId === id)
 
-      return res.end(JSON.stringify({message: 'Success'}))
-    default:
-      return res.end();
+    res.statusCode = 200
+    return res.end(JSON.stringify({todos: filteredTodos}))
+  })
+}
+
+function handleRefreshToken(res, req) {
+  const refreshToken = req.body.token;
+
+  if (!refreshToken) {
+    res.statusCode = 401;
+    return res.end(JSON.stringify({ message: 'No token provided' }));
   }
+
+  if (!refreshTokens.includes(refreshToken)) {
+    res.statusCode = 403;
+    return res.end();
+  }
+
+  jwt.verify(refreshToken, process.env.REFRESH_SECRET_KEY, (err, user) => {
+    if (err) {
+      res.statusCode = 403;
+      return res.end();
+    }
+
+    const accessToken = generateAccessToken({ name: user.name, userId: user.userId });
+    const refreshToken = jwt.sign({ name: user.name, userId: user.userId }, process.env.REFRESH_SECRET_KEY);
+
+    refreshTokens.push(refreshToken)
+
+    res.statusCode = 200;
+    return res.end(JSON.stringify({ accessToken, refreshToken }));
+  });
+}
+
+function handleLogin(res, req, data, USERS) {
+  const parsedLoginData = JSON.parse(data)
+  const foundUser = USERS.find(({email, password}) => email === parsedLoginData.email && password === parsedLoginData.password)
+
+  if (foundUser) {
+    const accessToken = generateAccessToken(foundUser)
+    const refreshToken = jwt.sign(foundUser, process.env.REFRESH_SECRET_KEY)
+    refreshTokens.push(refreshToken);
+
+    res.statusCode = 200
+    return res.end(JSON.stringify({accessToken, refreshToken, name: foundUser.name, userId: foundUser.userId}))
+  }
+
+  res.statusCode = 401
+  return res.end(JSON.stringify({message: "Not found user"}))
+}
+
+function handleLogout(res, req) {
+  const token = req.body.token;
+  refreshTokens = refreshTokens.filter(item => item !== token);
+
+  res.statusCode = 200
+  return res.end(JSON.stringify({message: 'Success'}))
 }
 
 module.exports = {
@@ -121,5 +191,7 @@ module.exports = {
   handleNewTodo,
   handleGetTodos,
   handleChangeTodo,
-  getReadFile,
+  handleLogout,
+  handleRefreshToken,
+  getReadFile
 };
