@@ -1,10 +1,8 @@
-const http = require('http');
-const PORT = 3000
+const http = require('http')
+require('dotenv').config()
 
-const server = http.createServer((req, res) => {
-  console.log('Server')
-})
+const routes = require('./routes')
 
-server.listen(PORT, (error) => {
-  console.log(error ? error : `listening port ${PORT}`)
-})
+const server = http.createServer(routes)
+
+server.listen(process.env.PORT)
