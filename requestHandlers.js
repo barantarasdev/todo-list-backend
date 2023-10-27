@@ -68,7 +68,7 @@ function verifyToken(req, res, next) {
 }
 
 function generateAccessToken(user) {
-  return  jwt.sign(user, process.env.ACCESS_SECRET_KEY, {expiresIn: '25s'})
+  return  jwt.sign(user, process.env.ACCESS_SECRET_KEY, {expiresIn: '15m'})
 }
 
 function handleRegister(res, data, USERS) {
