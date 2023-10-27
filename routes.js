@@ -7,16 +7,11 @@ const {
   handleRefreshToken,
   handleLogout
 } = require('./requestHandlers')
-const { getReadFile } = require('./helpers/index')
 
 function requestHandler(req, res) {
   const { url, method } = req
-  const getTodosPattern = /^\/todos\/user\/\d+$/
-  const manipulateTodosPattern = /^\/todos\/(\d+)$/
-  const usersPath = './users.json'
-  const todosPath = './todos.json'
-  const USERS = getReadFile(usersPath)
-  const TODOS = getReadFile(todosPath)
+  const getTodosPattern = /^\/todos\/user\/.+$/
+  const manipulateTodosPattern = /^\/todos\/.+$/
   let data = ''
 
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -43,10 +38,10 @@ function requestHandler(req, res) {
       return handleRefreshToken(res, req)
 
     if (url === '/login' && method === 'POST')
-      return handleLogin(res, req, data, USERS)
+      return handleLogin(res, req, data)
 
     if (url === '/register' && method === 'POST')
-      return handleRegister(res, data, USERS)
+      return handleRegister(res, data)
 
     if (url === '/logout' && method === 'POST')
       return handleLogout(res, req)
@@ -55,10 +50,10 @@ function requestHandler(req, res) {
       return handleNewTodo(res, req, data)
 
     if (getTodosPattern.test(url) && method === 'POST')
-      return handleGetTodos(res, req, TODOS)
+      return handleGetTodos(res, req)
 
     if (manipulateTodosPattern.test(url))
-      return handleChangeTodo(res, req, data, TODOS)
+      return handleChangeTodo(res, req, data)
 
     res.statusCode = 404
     return res.end()

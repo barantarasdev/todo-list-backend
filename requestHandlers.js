@@ -1,94 +1,76 @@
 const jwt = require('jsonwebtoken')
 const bcrypt = require('bcrypt')
 const {
-  setNewValue,
-  setNewFile,
   findUser,
   verifyToken,
   generateAccessToken
 } = require('./helpers/index')
+const { requestFromDB } = require('./database')
 
-const usersPath = './users.json'
-const todosPath = './todos.json'
 let refreshTokens = []
 const SALT_ROUNDS = 10
 
 function handleNewTodo(res, req, data) {
-  verifyToken(req, res, () => {
-    const parsedData = JSON.parse(data)
+  verifyToken(req, res, async () => {
+    const { todo_completed, todo_value, user_id } = JSON.parse(data)
 
-    setNewValue(todosPath, parsedData)
+    const queryText = `
+        INSERT INTO todos(user_id, todo_value, todo_completed) 
+        VALUES($1, $2, $3) RETURNING todo_id`
+    const values = [user_id, todo_value, todo_completed]
+    const result = await requestFromDB(queryText, values)
 
     res.statusCode = 201
-    return res.end(JSON.stringify({ message: 'Success' }))
+    return res.end(JSON.stringify({ todo_id: result[0].todo_id }))
   })
 }
 
-function handleChangeTodo(res, req, data, TODOS) {
-  verifyToken(req, res, () => {
-    const id = +req.url.split('/').pop()
+async function handleChangeTodo(res, req, data) {
+  verifyToken(req, res, async () => {
+    const id = req.url.split('/').pop()
 
     switch (req.method) {
       case 'PATCH':
         const parsedData = JSON.parse(data)
-        const newTodos = TODOS.map(todo => todo.id === id ? { ...todo, ...parsedData } : todo)
-        setNewFile(todosPath, newTodos)
+        const values = Object.values(parsedData)
+
+        const updates = Object.keys(parsedData).map((key, index) => `${key} = $${index + 1}`).join(', ')
+        const updateQuery = `
+          UPDATE todos 
+          SET ${updates}
+          WHERE todo_id = $${values.length + 1}
+        `
+
+        await requestFromDB(updateQuery, [...values, id])
 
         res.statusCode = 200
         return res.end(JSON.stringify({ message: 'Success' }))
+
       case 'DELETE':
-        const filteredTodo = TODOS.filter(todo => todo.id !== id)
-        setNewFile(todosPath, filteredTodo)
+        await requestFromDB(`DELETE FROM todos WHERE todo_id = '${id}'`)
 
         res.statusCode = 200
         return res.end(JSON.stringify({ message: 'Success' }))
+
       default:
         return res.end()
     }
   })
 }
 
-function handleGetTodos(res, req, TODOS) {
-  verifyToken(req, res, () => {
-    const id = +req.url.split('/').pop()
-    const filteredTodos = TODOS.filter(({ userId }) => userId === id)
+function handleGetTodos(res, req) {
+  verifyToken(req, res, async () => {
+    try {
+      const todos = await requestFromDB('SELECT * FROM todos ORDER BY createdAt')
+      const id = req.url.split('/').pop()
+      const filteredTodos = todos.filter(({ user_id }) => user_id === id)
 
-    res.statusCode = 200
-    return res.end(JSON.stringify({ todos: filteredTodos }))
-  })
-}
-
-function handleRegister(res, data, USERS) {
-  const parsedRegisterData = JSON.parse(data)
-
-  const foundUser = findUser(USERS, parsedRegisterData.email)
-
-  if (foundUser) {
-    res.statusCode = 404
-
-    return res.end()
-  }
-
-  bcrypt.hash(parsedRegisterData.password, SALT_ROUNDS, function(err, hash) {
-    if (err) {
-      res.statusCode = 404
+      res.statusCode = 200
+      return res.end(JSON.stringify({ todos: filteredTodos }))
+    } catch (error) {
+      console.log(error)
       return res.end()
     }
-
-    const userWithHashedPassword = {
-      ...parsedRegisterData,
-      password: hash
-    }
-
-    setNewValue(usersPath, userWithHashedPassword)
-
-    const accessToken = generateAccessToken(parsedRegisterData)
-    const refreshToken = jwt.sign(parsedRegisterData, process.env.REFRESH_SECRET_KEY)
-
-    refreshTokens.push(refreshToken)
-
-    res.statusCode = 201
-    return res.end(JSON.stringify({ accessToken, refreshToken }))
   })
 }
 
@@ -100,7 +82,7 @@ function handleRefreshToken(res, req) {
     return res.end(JSON.stringify({ message: 'No token provided' }))
   }
 
-  jwt.verify(refreshToken, process.env.REFRESH_SECRET_KEY, (err, user) => {
+  jwt.verify(refreshToken, process.env.REFRESH_SECRET_KEY, (err, { user_name, user_id }) => {
     if (err) {
       res.statusCode = 403
       return res.end()
@@ -113,9 +95,10 @@ function handleRefreshToken(res, req) {
     }
 
     refreshTokens.splice(refreshTokenIndex, 1)
+    const newUser = { user_name, user_id }
 
-    const accessToken = generateAccessToken({ name: user.name, userId: user.userId })
-    const newRefreshToken = jwt.sign({ name: user.name, userId: user.userId }, process.env.REFRESH_SECRET_KEY)
+    const accessToken = generateAccessToken(newUser)
+    const newRefreshToken = jwt.sign(newUser, process.env.REFRESH_SECRET_KEY)
 
     refreshTokens.push(newRefreshToken)
 
@@ -124,33 +107,62 @@ function handleRefreshToken(res, req) {
   })
 }
 
-function handleLogin(res, req, data, USERS) {
-  const parsedLoginData = JSON.parse(data)
-  const foundUser = findUser(USERS, parsedLoginData.email)
+async function handleRegister(res, data) {
+  const parsedRegisterData = JSON.parse(data)
+  const foundUser = await findUser(parsedRegisterData.user_email)
+
+  if (foundUser) {
+    res.statusCode = 404
+
+    return res.end()
+  }
+
+  const hash = await bcrypt.hash(parsedRegisterData.user_password, SALT_ROUNDS)
+  const { user_name, user_email, user_password, user_phone, user_age, user_gender, user_site } = {
+    ...parsedRegisterData,
+    user_password: hash
+  }
+
+  const queryText = `
+        INSERT INTO users(user_name, user_email, user_password, user_phone, user_age, user_gender, user_site) 
+        VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING user_id`
+  const values = [user_name, user_email, user_password, user_phone, user_age, user_gender, user_site]
+  const accessToken = generateAccessToken(parsedRegisterData)
+  const refreshToken = jwt.sign(parsedRegisterData, process.env.REFRESH_SECRET_KEY)
+  const result = await requestFromDB(queryText, values)
+
+  refreshTokens.push(refreshToken)
+
+  res.statusCode = 201
+  return res.end(JSON.stringify({ accessToken, refreshToken, user_id: result[0].user_id }))
+}
+
+async function handleLogin(res, req, data) {
+  const { user_email, user_password } = JSON.parse(data)
+  const foundUser = await findUser(user_email)
 
   if (!foundUser) {
     res.statusCode = 401
     return res.end(JSON.stringify({ message: 'Not found user' }))
   }
 
-  bcrypt.compare(parsedLoginData.password, foundUser.password, (err, isMatch) => {
-    if (err) {
-      res.statusCode = 404
-      return res.end(JSON.stringify({ message: 'Internal server error' }))
-    }
+  const isMatch = bcrypt.compare(user_password, foundUser.user_password)
+  if (!isMatch) {
+    res.statusCode = 401
+    return res.end(JSON.stringify({ message: 'Invalid credentials' }))
+  }
 
-    if (!isMatch) {
-      res.statusCode = 401
-      return res.end(JSON.stringify({ message: 'Invalid credentials' }))
-    }
+  const accessToken = generateAccessToken(foundUser)
+  const refreshToken = jwt.sign(foundUser, process.env.REFRESH_SECRET_KEY)
+  refreshTokens.push(refreshToken)
 
-    const accessToken = generateAccessToken(foundUser)
-    const refreshToken = jwt.sign(foundUser, process.env.REFRESH_SECRET_KEY)
-    refreshTokens.push(refreshToken)
-
-    res.statusCode = 200
-    return res.end(JSON.stringify({ accessToken, refreshToken, name: foundUser.name, userId: foundUser.userId }))
-  })
+  res.statusCode = 200
+  return res.end(JSON.stringify({
+    accessToken,
+    refreshToken,
+    user_name: foundUser.user_name,
+    user_id: foundUser.user_id
+  }))
 }
 
 function handleLogout(res, req) {

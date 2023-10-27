@@ -1,45 +1,10 @@
-const fs = require('fs')
 const jwt = require('jsonwebtoken')
+const { requestFromDB } = require('../database')
 
-function getReadFile(filePath) {
-  try {
-    const fileData = fs.readFileSync(filePath, 'utf-8')
+async function findUser(email) {
+  const users = await requestFromDB('SELECT * FROM users')
 
-    return JSON.parse(fileData)
-  } catch (error) {
-    console.log(error)
-  }
-}
-
-function setNewValue(filePath, newData) {
-  let data = []
-
-  try {
-    const fileData = fs.readFileSync(filePath, 'utf-8')
-    data = JSON.parse(fileData)
-  } catch (error) {
-    console.log(error)
-  }
-
-  data.push(newData)
-
-  try {
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8')
-  } catch (error) {
-    console.log(error)
-  }
-}
-
-function setNewFile(filePath, newData) {
-  try {
-    fs.writeFileSync(filePath, JSON.stringify([...newData], null, 2), 'utf-8')
-  } catch (error) {
-    console.log(error)
-  }
-}
-
-function findUser(users, email) {
-  return users.find((user) => email === user.email)
+  return users.find(({ user_email }) => email === user_email)
 }
 
 function verifyToken(req, res, next) {
@@ -66,9 +31,6 @@ function generateAccessToken(user) {
 }
 
 module.exports = {
-  getReadFile,
-  setNewValue,
-  setNewFile,
   findUser,
   verifyToken,
   generateAccessToken
