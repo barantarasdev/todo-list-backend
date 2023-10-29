@@ -6,57 +6,56 @@ const {
   handleChangeTodo,
   handleRefreshToken,
   handleLogout
-} = require('./requestHandlers')
+} = require('../controllers')
+const { statusCode200, statusCode404 } = require('../statusCodes')
+const { URL_TODOS_PATTERN, URL_MANIPULATE_TODOS_PATTERN } = require('../constants')
 
 function requestHandler(req, res) {
-  const { url, method } = req
-  const getTodosPattern = /^\/todos\/user\/.+$/
-  const manipulateTodosPattern = /^\/todos\/.+$/
-  let data = ''
-
-  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Origin', process.env.ALLOW_URL)
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, PATCH, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   res.setHeader('Content-Type', 'application/json')
+
+  const { url, method } = req
+  let data = ''
 
   req.on('data', chunk => {
     data += chunk.toString()
   })
 
   req.on('end', () => {
+    let parsedData
+
     if (data) {
-      req.body = JSON.parse(data)
+      parsedData = JSON.parse(data)
+      req.body = parsedData
     }
 
-    if (method === 'OPTIONS') {
-      res.statusCode = 200
-
-      return res.end()
-    }
+    if (method === 'OPTIONS')
+      return statusCode200(res)
 
     if (url === '/refresh' && method === 'POST')
       return handleRefreshToken(res, req)
 
     if (url === '/login' && method === 'POST')
-      return handleLogin(res, req, data)
+      return handleLogin(res, req, parsedData)
 
     if (url === '/register' && method === 'POST')
-      return handleRegister(res, data)
+      return handleRegister(res, parsedData)
 
     if (url === '/logout' && method === 'POST')
       return handleLogout(res, req)
 
     if (url === '/todos' && method === 'POST')
-      return handleNewTodo(res, req, data)
+      return handleNewTodo(res, req, parsedData)
 
-    if (getTodosPattern.test(url) && method === 'POST')
+    if (URL_TODOS_PATTERN.test(url) && method === 'POST')
       return handleGetTodos(res, req)
 
-    if (manipulateTodosPattern.test(url))
-      return handleChangeTodo(res, req, data)
+    if (URL_MANIPULATE_TODOS_PATTERN.test(url))
+      return handleChangeTodo(res, req, parsedData)
 
-    res.statusCode = 404
-    return res.end()
+    return statusCode404(res)
   })
 }
 

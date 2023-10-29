@@ -1,6 +1,6 @@
 const { Client } = require('pg')
 
-async function requestFromDB(text, values) {
+async function requestToDB(text, values) {
   const client = new Client({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
@@ -11,18 +11,17 @@ async function requestFromDB(text, values) {
 
   try {
     await client.connect()
-
     const res = await client.query(text, values)
 
     return res.rows
   } catch (err) {
     console.error(err.message)
-    throw err
+    throw Error
   } finally {
     await client.end()
   }
 }
 
 module.exports = {
-  requestFromDB
+  requestToDB
 }
