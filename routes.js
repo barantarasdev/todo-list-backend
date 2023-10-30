@@ -5,12 +5,12 @@ const {
   handleGetTodos,
   handleChangeTodo,
   handleRefreshToken,
-  handleLogout,
-  getReadFile
+  handleLogout
 } = require('./requestHandlers')
+const { getReadFile } = require('./helpers/index')
 
 function requestHandler(req, res) {
-  const {url, method} = req
+  const { url, method } = req
   const getTodosPattern = /^\/todos\/user\/\d+$/
   const manipulateTodosPattern = /^\/todos\/(\d+)$/
   const usersPath = './users.json'
@@ -19,10 +19,10 @@ function requestHandler(req, res) {
   const TODOS = getReadFile(todosPath)
   let data = ''
 
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, PATCH, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, PATCH, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  res.setHeader('Content-Type', 'application/json')
 
   req.on('data', chunk => {
     data += chunk.toString()
@@ -30,13 +30,13 @@ function requestHandler(req, res) {
 
   req.on('end', () => {
     if (data) {
-      req.body = JSON.parse(data);
+      req.body = JSON.parse(data)
     }
 
     if (method === 'OPTIONS') {
-      res.statusCode = 200;
+      res.statusCode = 200
 
-      return res.end();
+      return res.end()
     }
 
     if (url === '/refresh' && method === 'POST')
@@ -52,7 +52,7 @@ function requestHandler(req, res) {
       return handleLogout(res, req)
 
     if (url === '/todos' && method === 'POST')
-      return handleNewTodo(res,req, data)
+      return handleNewTodo(res, req, data)
 
     if (getTodosPattern.test(url) && method === 'POST')
       return handleGetTodos(res, req, TODOS)
@@ -61,7 +61,7 @@ function requestHandler(req, res) {
       return handleChangeTodo(res, req, data, TODOS)
 
     res.statusCode = 404
-    return res.end();
+    return res.end()
   })
 }
 
