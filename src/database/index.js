@@ -46,11 +46,11 @@ class DataBase {
     return todos
   }
 
-  createTodo = async (data) => {
+  createTodo = async ({ todo_completed, todo_value, user_id }) => {
     const queryText = `
-        INSERT INTO todos(${Object.keys(data).join(', ')}) 
+        INSERT INTO todos(todo_completed, todo_value, user_id) 
         VALUES($1, $2, $3) RETURNING todo_id`
-    const result = await this.requestToDB(queryText, Object.values(data))
+    const result = await this.requestToDB(queryText, [todo_completed, todo_value, user_id])
 
     return result[0].todo_id
   }
@@ -70,11 +70,11 @@ class DataBase {
     await this.requestToDB(`DELETE FROM todos WHERE todo_id = $1`, [id])
   }
 
-  signUp = async (data) => {
+  signUp = async ({ user_name, user_email, user_password, user_phone, user_age, user_gender, user_site }) => {
     const queryText = `
-        INSERT INTO users(${Object.keys(data).join(', ')}) 
+        INSERT INTO users(user_name, user_email, user_password, user_phone, user_age, user_gender, user_site) 
         VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING user_id`
-    const result = await this.requestToDB(queryText, Object.values(data))
+    const result = await this.requestToDB(queryText, [user_name, user_email, user_password, user_phone, user_age, user_gender, user_site])
     const user_id = result[0].user_id
 
     return user_id
