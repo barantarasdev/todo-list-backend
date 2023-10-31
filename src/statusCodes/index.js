@@ -1,24 +1,16 @@
 exports.statusCode200 = (res, message = { message: 'Success' }) => {
-  res.statusCode = 200
-  return res.end(JSON.stringify(message))
+  res.code(200).send(message)
 }
 
 exports.statusCode201 = (res, message = { message: 'Created' }) => {
-  res.statusCode = 201
-  return res.end(JSON.stringify(message))
+  res.code(201).send(message)
 }
 
 exports.statusCode401 = (res, message = { message: 'Not authorized' }) => {
-  res.statusCode = 401
-  return res.end(JSON.stringify(message))
+  res.code(401).send(message)
 }
 
 exports.statusCode403 = (res, message = { message: 'Forbidden' }) => {
-  res.statusCode = 403
-  return res.end(JSON.stringify(message))
+  res.code(403).send(message)
 }
 
-exports.statusCode404 = (res, message = { message: 'Not found' }) => {
-  res.statusCode = 404
-  return res.end(JSON.stringify(message))
-}
