@@ -1,27 +1,101 @@
-const { Client } = require('pg')
+const { Pool } = require('pg')
 
-async function requestToDB(text, values) {
-  const client = new Client({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    port: process.env.DB_PORT,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_DATABASE
-  })
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  port: process.env.DB_PORT,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_DATABASE,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000
+})
 
-  try {
-    await client.connect()
-    const res = await client.query(text, values)
+class DataBase {
+  requestToDB = async (text, values) => {
+    const client = await pool.connect()
 
-    return res.rows
-  } catch (err) {
-    console.error(err.message)
-    throw Error
-  } finally {
-    await client.end()
+    try {
+      const res = await client.query(text, values)
+
+      return res.rows
+    } catch (err) {
+      console.error(err.message)
+      throw Error
+    } finally {
+      await client.release()
+    }
+  }
+
+  getUser = async (email) => {
+    const user = await this.requestToDB(`
+      SELECT * FROM users
+      WHERE user_email = $1
+    `, [email])
+
+    return user[0]
+  }
+
+  getTodos = async (id) => {
+    const todos = await this.requestToDB(`
+      SELECT * FROM todos
+      WHERE user_id = $1
+      ORDER BY createdAt
+    `, [id])
+
+    return todos
+  }
+
+  createTodo = async ({ todo_completed, todo_value, user_id }) => {
+    const queryText = `
+        INSERT INTO todos(todo_completed, todo_value, user_id) 
+        VALUES($1, $2, $3) RETURNING todo_id`
+    const result = await this.requestToDB(queryText, [todo_completed, todo_value, user_id])
+
+    return result[0].todo_id
+  }
+
+  changeTodo = async (data, id) => {
+    const values = Object.values(data)
+    const updates = Object.keys(data).map((key, index) => `${key} = $${index + 1}`).join(', ')
+    const updateQuery = `
+          UPDATE todos 
+          SET ${updates}
+          WHERE todo_id = $${values.length + 1}
+        `
+    await this.requestToDB(updateQuery, [...values, id])
+  }
+
+  removeTodo = async (id) => {
+    await this.requestToDB(`DELETE FROM todos WHERE todo_id = $1`, [id])
+  }
+
+  signUp = async ({ user_name, user_email, user_password, user_phone, user_age, user_gender, user_site }) => {
+    const queryText = `
+        INSERT INTO users(user_name, user_email, user_password, user_phone, user_age, user_gender, user_site) 
+        VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING user_id`
+    const result = await this.requestToDB(queryText, [user_name, user_email, user_password, user_phone, user_age, user_gender, user_site])
+    const user_id = result[0].user_id
+
+    return user_id
+  }
+
+  storeRefreshToken = async (token, user_id) => {
+    const queryText = 'INSERT INTO refresh_tokens(user_id, token) VALUES($1, $2)'
+    await this.requestToDB(queryText, [user_id, token])
+  }
+
+  verifyRefreshToken = async (token) => {
+    const queryText = 'SELECT * FROM refresh_tokens WHERE token = $1'
+    const tokens = await this.requestToDB(queryText, [token])
+
+    return tokens.length
+  }
+
+  removeRefreshToken = async (token) => {
+    const queryText = 'DELETE FROM refresh_tokens WHERE token = $1'
+    await this.requestToDB(queryText, [token])
   }
 }
 
-module.exports = {
-  requestToDB
-}
+module.exports = new DataBase()
