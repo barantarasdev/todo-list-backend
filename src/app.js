@@ -1,8 +1,19 @@
-const http = require('http')
 require('dotenv').config()
+const fastify = require('fastify')()
 
-const routes = require('./routes')
+fastify.register(require('@fastify/cors'), {
+  origin: process.env.ALLOW_URL,
+  methods: ['POST', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  preflightContinue: true
+})
 
-const server = http.createServer(routes)
+fastify.register(require('./routes/user'))
+fastify.register(require('./routes/todos'))
 
-server.listen(process.env.PORT)
+fastify.listen({ port: process.env.PORT }, (err) => {
+  if (err) {
+    fastify.log.error(err)
+    process.exit(1)
+  }
+})

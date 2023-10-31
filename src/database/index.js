@@ -1,100 +1,115 @@
-const { Pool } = require('pg')
-
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  port: process.env.DB_PORT,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_DATABASE,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000
-})
+const { PrismaClient } = require('@prisma/client')
 
 class DataBase {
-  requestToDB = async (text, values) => {
-    const client = await pool.connect()
-
-    try {
-      const res = await client.query(text, values)
-
-      return res.rows
-    } catch (err) {
-      console.error(err.message)
-      throw Error
-    } finally {
-      await client.release()
-    }
+  constructor() {
+    this.db = new PrismaClient()
+    this.todos = this.db.todos
+    this.users = this.db.users
+    this.refresh_tokens = this.db.refresh_tokens
   }
 
-  getUser = async (email) => {
-    const user = await this.requestToDB(`
-      SELECT * FROM users
-      WHERE user_email = $1
-    `, [email])
+  getUser = async (request) => {
+    const user = await this.users.findUnique({
+      where: {
+        user_email: request.body.user_email
+      }
+    })
 
-    return user[0]
+    return user
   }
 
-  getTodos = async (id) => {
-    const todos = await this.requestToDB(`
-      SELECT * FROM todos
-      WHERE user_id = $1
-      ORDER BY createdAt
-    `, [id])
+  createUser = async (data) => {
+    const {
+      user_name, user_email, user_password, user_phone, user_age, user_gender, user_site
+    } = data
+    const user = await this.users.create({
+      data: {
+        user_name,
+        user_email,
+        user_password,
+        user_phone,
+        user_age,
+        user_gender,
+        user_site
+      }
+    })
+
+    return user.user_id
+  }
+
+  getTodos = async (request) => {
+    const todos = await this.todos.findMany({
+      where: {
+        user_id: request.params.id
+      },
+      orderBy: {
+        createdat: 'asc'
+      }
+    })
 
     return todos
   }
 
-  createTodo = async ({ todo_completed, todo_value, user_id }) => {
-    const queryText = `
-        INSERT INTO todos(todo_completed, todo_value, user_id) 
-        VALUES($1, $2, $3) RETURNING todo_id`
-    const result = await this.requestToDB(queryText, [todo_completed, todo_value, user_id])
+  createTodo = async (request) => {
+    const { todo_completed, todo_value, user_id } = request.body
+    const todo = await this.todos.create({
+      data: {
+        todo_completed,
+        todo_value,
+        user_id
+      }
+    })
 
-    return result[0].todo_id
+    return todo.todo_id
   }
 
-  changeTodo = async (data, id) => {
-    const values = Object.values(data)
-    const updates = Object.keys(data).map((key, index) => `${key} = $${index + 1}`).join(', ')
-    const updateQuery = `
-          UPDATE todos 
-          SET ${updates}
-          WHERE todo_id = $${values.length + 1}
-        `
-    await this.requestToDB(updateQuery, [...values, id])
+  updateTodo = async (request) => {
+    const { todo_value, todo_completed } = request.body
+
+    await this.todos.update({
+      where: {
+        todo_id: request.params.id
+      },
+      data: {
+        todo_value,
+        todo_completed
+      }
+    })
   }
 
-  removeTodo = async (id) => {
-    await this.requestToDB(`DELETE FROM todos WHERE todo_id = $1`, [id])
+  deleteTodo = async (request) => {
+    await this.todos.delete({
+      where: {
+        todo_id: request.params.id
+      }
+    })
   }
 
-  signUp = async ({ user_name, user_email, user_password, user_phone, user_age, user_gender, user_site }) => {
-    const queryText = `
-        INSERT INTO users(user_name, user_email, user_password, user_phone, user_age, user_gender, user_site) 
-        VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING user_id`
-    const result = await this.requestToDB(queryText, [user_name, user_email, user_password, user_phone, user_age, user_gender, user_site])
-    const user_id = result[0].user_id
-
-    return user_id
+  deleteRefreshToken = async (request) => {
+    await this.refresh_tokens.delete({
+      where: {
+        refresh_token: request.body.refresh_token
+      }
+    })
   }
 
-  storeRefreshToken = async (token, user_id) => {
-    const queryText = 'INSERT INTO refresh_tokens(user_id, token) VALUES($1, $2)'
-    await this.requestToDB(queryText, [user_id, token])
+  createRefreshToken = async (refresh_token, user_id) => {
+    await this.refresh_tokens.create({
+      data: {
+        user_id,
+        refresh_token
+      }
+    })
   }
 
-  verifyRefreshToken = async (token) => {
-    const queryText = 'SELECT * FROM refresh_tokens WHERE token = $1'
-    const tokens = await this.requestToDB(queryText, [token])
+  verifyRefreshToken = async (request) => {
+    const token = await this.refresh_tokens.findUnique({
+      where: {
+        refresh_token: request.body.refresh_token
+      }
+    })
 
-    return tokens.length
-  }
-
-  removeRefreshToken = async (token) => {
-    const queryText = 'DELETE FROM refresh_tokens WHERE token = $1'
-    await this.requestToDB(queryText, [token])
+    return !!token
   }
 }
 
