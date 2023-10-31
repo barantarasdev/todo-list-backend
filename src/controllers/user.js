@@ -23,7 +23,7 @@ exports.handleRefresh = (request, reply) => {
       return statusCode403(reply)
     }
 
-    const newUser = { user_name: user.user_name, user_id: request.body.user_id }
+    const newUser = { user_name: user.user_name, user_id: user.user_id }
     const accessToken = generateAccessToken(newUser)
     const refreshToken = generateRefreshToken(newUser)
 
@@ -44,8 +44,8 @@ exports.handleRegister = async (request, reply) => {
   const hashedPassword = await bcrypt.hash(request.body.user_password, SALT_ROUNDS)
   const newUser = { ...request.body, user_password: hashedPassword }
   const accessToken = generateAccessToken(newUser)
-  const refreshToken = generateRefreshToken(newUser)
   const user_id = await db.createUser(newUser)
+  const refreshToken = generateRefreshToken({ ...newUser, user_id })
 
   await db.createRefreshToken(refreshToken, user_id)
 
