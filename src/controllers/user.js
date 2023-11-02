@@ -24,13 +24,13 @@ exports.handleRefresh = (request, reply) => {
     }
 
     const newUser = { user_name: user.user_name, user_id: user.user_id }
-    const accessToken = generateAccessToken(newUser)
-    const refreshToken = generateRefreshToken(newUser)
+    const access_token = generateAccessToken(newUser)
+    const refresh_token = generateRefreshToken(newUser)
 
     await db.deleteRefreshToken(request)
-    await db.createRefreshToken(refreshToken, newUser.user_id)
+    await db.createRefreshToken(refresh_token, newUser.user_id)
 
-    return statusCode200(reply, { accessToken, refreshToken })
+    return statusCode200(reply, { access_token, refresh_token })
   })
 }
 
@@ -43,13 +43,13 @@ exports.handleRegister = async (request, reply) => {
 
   const hashedPassword = await bcrypt.hash(request.body.user_password, SALT_ROUNDS)
   const newUser = { ...request.body, user_password: hashedPassword }
-  const accessToken = generateAccessToken(newUser)
+  const access_token = generateAccessToken(newUser)
   const user_id = await db.createUser(newUser)
-  const refreshToken = generateRefreshToken({ ...newUser, user_id })
+  const refresh_token = generateRefreshToken({ ...newUser, user_id })
 
-  await db.createRefreshToken(refreshToken, user_id)
+  await db.createRefreshToken(refresh_token, user_id)
 
-  return statusCode201(reply, { accessToken, refreshToken, user_id })
+  return statusCode201(reply, { access_token, refresh_token, user_id })
 }
 
 exports.handleLogin = async (request, reply) => {
@@ -65,15 +65,15 @@ exports.handleLogin = async (request, reply) => {
     return statusCode401(reply)
   }
 
-  const accessToken = generateAccessToken(user)
-  const refreshToken = generateRefreshToken(user)
+  const access_token = generateAccessToken(user)
+  const refresh_token = generateRefreshToken(user)
   const { user_name, user_id } = user
 
-  await db.createRefreshToken(refreshToken, user_id)
+  await db.createRefreshToken(refresh_token, user_id)
 
   return statusCode200(reply, {
-    accessToken,
-    refreshToken,
+    access_token,
+    refresh_token,
     user_name,
     user_id
   })
