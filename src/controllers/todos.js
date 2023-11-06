@@ -8,9 +8,9 @@ exports.handleGetTodos = async (request, reply) => {
 }
 
 exports.handleCreateTodo = async (request, reply) => {
-  const todo_id = await db.createTodo(request)
+  const todoId = await db.createTodo(request)
 
-  return statusCode201(reply, { todo_id })
+  return statusCode201(reply, { todoId })
 }
 
 exports.handleUpdateTodo = async (request, reply) => {

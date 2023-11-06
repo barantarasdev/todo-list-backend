@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client')
+const { convertKeysToCamelCase } = require('../helpers')
 
 class DataBase {
   constructor() {
@@ -11,7 +12,7 @@ class DataBase {
   getUser = async (request) => {
     const user = await this.users.findUnique({
       where: {
-        user_email: request.body.user_email
+        user_email: request.body.userEmail
       }
     })
 
@@ -20,7 +21,13 @@ class DataBase {
 
   createUser = async (data) => {
     const {
-      user_name, user_email, user_password, user_phone, user_age, user_gender, user_site
+      userName: user_name,
+      userEmail: user_email,
+      userPassword: user_password,
+      userPhone: user_phone,
+      userAge: user_age,
+      userGender: user_gender,
+      userSite: user_site
     } = data
     const user = await this.users.create({
       data: {
@@ -47,11 +54,11 @@ class DataBase {
       }
     })
 
-    return todos
+    return todos.map(todo => convertKeysToCamelCase(todo))
   }
 
   createTodo = async (request) => {
-    const { todo_completed, todo_value, user_id } = request.body
+    const { todoCompleted: todo_completed, todoValue: todo_value, userId: user_id } = request.body
     const todo = await this.todos.create({
       data: {
         todo_completed,
@@ -64,7 +71,7 @@ class DataBase {
   }
 
   updateTodo = async (request) => {
-    const { todo_value, todo_completed } = request.body
+    const { todoValue: todo_value, todoCompleted: todo_completed } = request.body
 
     await this.todos.update({
       where: {
@@ -88,7 +95,7 @@ class DataBase {
   deleteRefreshToken = async (request) => {
     await this.refresh_tokens.delete({
       where: {
-        refresh_token: request.body.refresh_token
+        refresh_token: request.body.refreshToken
       }
     })
   }
@@ -105,7 +112,7 @@ class DataBase {
   verifyRefreshToken = async (request) => {
     const token = await this.refresh_tokens.findUnique({
       where: {
-        refresh_token: request.body.refresh_token
+        refresh_token: request.body.refreshToken
       }
     })
 

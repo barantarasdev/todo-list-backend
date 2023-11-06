@@ -6,7 +6,7 @@ const { generateAccessToken, generateRefreshToken } = require('../helpers')
 const db = require('../database')
 
 exports.handleRefresh = (request, reply) => {
-  const currentRefreshToken = request.body?.refresh_token
+  const currentRefreshToken = request.body?.refreshToken
 
   if (!currentRefreshToken) {
     return statusCode401(reply)
@@ -23,14 +23,14 @@ exports.handleRefresh = (request, reply) => {
       return statusCode403(reply)
     }
 
-    const newUser = { user_name: user.user_name, user_id: user.user_id }
-    const access_token = generateAccessToken(newUser)
-    const refresh_token = generateRefreshToken(newUser)
+    const newUser = { userName: user.user_name, userId: user.user_id }
+    const accessToken = generateAccessToken(newUser)
+    const refreshToken = generateRefreshToken(newUser)
 
     await db.deleteRefreshToken(request)
-    await db.createRefreshToken(refresh_token, newUser.user_id)
+    await db.createRefreshToken(accessToken, newUser.userId)
 
-    return statusCode200(reply, { access_token, refresh_token })
+    return statusCode200(reply, { refreshToken, accessToken })
   })
 }
 
@@ -41,15 +41,15 @@ exports.handleRegister = async (request, reply) => {
     return statusCode403(reply)
   }
 
-  const hashedPassword = await bcrypt.hash(request.body.user_password, SALT_ROUNDS)
-  const newUser = { ...request.body, user_password: hashedPassword }
-  const access_token = generateAccessToken(newUser)
-  const user_id = await db.createUser(newUser)
-  const refresh_token = generateRefreshToken({ ...newUser, user_id })
+  const hashedPassword = await bcrypt.hash(request.body.userPassword, SALT_ROUNDS)
+  const newUser = { ...request.body, userPassword: hashedPassword }
+  const accessToken = generateAccessToken(newUser)
+  const userId = await db.createUser(newUser)
+  const refreshToken = generateRefreshToken({ ...newUser, userId })
 
-  await db.createRefreshToken(refresh_token, user_id)
+  await db.createRefreshToken(refreshToken, userId)
 
-  return statusCode201(reply, { access_token, refresh_token, user_id })
+  return statusCode201(reply, { accessToken, refreshToken, userId })
 }
 
 exports.handleLogin = async (request, reply) => {
@@ -59,23 +59,23 @@ exports.handleLogin = async (request, reply) => {
     return statusCode401(reply)
   }
 
-  const isMatch = await bcrypt.compare(request.body.user_password, user.user_password)
+  const isMatch = await bcrypt.compare(request.body.userPassword, user.user_password)
 
   if (!isMatch) {
     return statusCode401(reply)
   }
 
-  const access_token = generateAccessToken(user)
-  const refresh_token = generateRefreshToken(user)
-  const { user_name, user_id } = user
+  const accessToken = generateAccessToken(user)
+  const refreshToken = generateRefreshToken(user)
+  const { user_name: userName, user_id: userId } = user
 
-  await db.createRefreshToken(refresh_token, user_id)
+  await db.createRefreshToken(refreshToken, userId)
 
   return statusCode200(reply, {
-    access_token,
-    refresh_token,
-    user_name,
-    user_id
+    accessToken,
+    refreshToken,
+    userName,
+    userId
   })
 }
 

@@ -22,19 +22,19 @@ exports.registerSchema = {
   body: {
     type: 'object',
     properties: {
-      user_age: { type: 'number', minimum: 18, maximum: 60 },
-      user_email: { type: 'string', format: 'email' },
-      user_phone: { type: 'string', pattern: '^\\+?[(]?[0-9]{3}[)]?[-\\s.]?[0-9]{3}[-\\s.]?[0-9]{4,6}$' },
-      user_site: { type: 'string', pattern: '^(https?:\\/\\/)?(?!www\\.)[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,6}$' },
-      user_password: { type: 'string', pattern: '^(?=.*\\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[^a-zA-Z0-9])(?!.*\\s).{6,15}$' },
-      user_confirm_password: { type: 'string' },
-      user_name: { type: 'string', minLength: 2 }
+      userAge: { type: 'number', minimum: 18, maximum: 60 },
+      userEmail: { type: 'string', format: 'email' },
+      userPhone: { type: 'string', pattern: '^\\+?[(]?[0-9]{3}[)]?[-\\s.]?[0-9]{3}[-\\s.]?[0-9]{4,6}$' },
+      userSite: { type: 'string', pattern: '^(https?:\\/\\/)?(?!www\\.)[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,6}$' },
+      userPassword: { type: 'string', pattern: '^(?=.*\\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[^a-zA-Z0-9])(?!.*\\s).{6,15}$' },
+      userConfirmPassword: { type: 'string' },
+      userName: { type: 'string', minLength: 2 }
     },
-    required: ['user_age', 'user_email', 'user_phone', 'user_site', 'user_password', 'user_name', 'user_confirm_password']
+    required: ['userAge', 'userEmail', 'userPhone', 'userSite', 'userPassword', 'userName', 'userConfirmPassword']
   }
 }
 
 exports.todoSchema = {
   type: 'object',
-  required: ['todo_value']
+  required: ['todoValue']
 }
