@@ -1,6 +1,6 @@
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
-const { statusCode201, statusCode401, statusCode200, statusCode403 } = require('../statusCodes')
+const { statusCode201, statusCode401, statusCode200, statusCode403, statusCode404 } = require('../statusCodes')
 const { SALT_ROUNDS } = require('../constants')
 const { generateAccessToken, generateRefreshToken } = require('../helpers')
 const db = require('../database')
@@ -38,7 +38,7 @@ exports.handleRegister = async (request, reply) => {
   const user = await db.getUser(request)
 
   if (user) {
-    return statusCode403(reply)
+    return statusCode404(reply)
   }
 
   const hashedPassword = await bcrypt.hash(request.body.userPassword, SALT_ROUNDS)

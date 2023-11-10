@@ -1,12 +1,6 @@
 const db = require('../database')
 const { statusCode200, statusCode201 } = require('../statusCodes')
 
-exports.handleGetTodos = async (request, reply) => {
-  const todos = await db.getTodos(request)
-
-  return statusCode200(reply, { todos })
-}
-
 exports.handleCreateTodo = async (request, reply) => {
   const todoId = await db.createTodo(request)
 
@@ -15,6 +9,12 @@ exports.handleCreateTodo = async (request, reply) => {
 
 exports.handleUpdateTodo = async (request, reply) => {
   await db.updateTodo(request)
+
+  return statusCode200(reply)
+}
+
+exports.handleUpdateTodoOrder = async (request, reply) => {
+  await db.updateTodoOrder(request)
 
   return statusCode200(reply)
 }

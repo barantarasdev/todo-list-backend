@@ -10,6 +10,7 @@ fastify.register(require('@fastify/cors'), {
 
 fastify.register(require('./routes/user'))
 fastify.register(require('./routes/todos'))
+fastify.register(require('./routes/cols'))
 
 fastify.listen({ port: process.env.PORT }, (err) => {
   if (err) {

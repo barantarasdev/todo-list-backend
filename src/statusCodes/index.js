@@ -14,3 +14,7 @@ exports.statusCode403 = (res, message = { message: 'Forbidden' }) => {
   res.code(403).send(message)
 }
 
+exports.statusCode404 = (res, message = { message: 'Bad request' }) => {
+  res.code(404).send(message)
+}
+

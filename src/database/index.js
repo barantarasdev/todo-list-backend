@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client')
-const { convertKeysToCamelCase } = require('../helpers')
+const { NEW_ORDER_STEP } = require('../constants')
+const { getNewOrder, getTime } = require('../helpers')
 
 class DataBase {
   constructor() {
@@ -7,6 +8,8 @@ class DataBase {
     this.todos = this.db.todos
     this.users = this.db.users
     this.refresh_tokens = this.db.refresh_tokens
+    this.todos_cols = this.db.todo_cols
+    this.cols = this.db.cols
   }
 
   getUser = async (request) => {
@@ -17,6 +20,19 @@ class DataBase {
     })
 
     return user
+  }
+
+  getMaxOrder = async (entityType, userId) => {
+    const result = await this[entityType].aggregate({
+      where: {
+        user_id: userId
+      },
+      _max: {
+        [`${entityType.slice(0, -1)}_order`]: true
+      }
+    })
+
+    return Number(result._max[`${entityType}_order`] + 1.0 || 1.0)
   }
 
   createUser = async (data) => {
@@ -44,30 +60,130 @@ class DataBase {
     return user.user_id
   }
 
-  getTodos = async (request) => {
-    const todos = await this.todos.findMany({
+  getCols = async (request) => {
+    const res = await this.cols.findMany({
       where: {
         user_id: request.params.id
       },
       orderBy: {
-        createdat: 'asc'
+        col_order: 'asc'
+      },
+      include: {
+        todo_cols: {
+          include: {
+            todos: {
+              select: {
+                todo_id: true,
+                todo_value: true,
+                todo_completed: true,
+                todo_order: true
+              }
+            }
+          }
+        }
       }
     })
 
-    return todos.map(todo => convertKeysToCamelCase(todo))
+    return res.map(({ col_id, col_name, col_order, todo_cols }) => {
+      return {
+        colId: col_id,
+        colName: col_name,
+        colOrder: col_order,
+        todos: todo_cols.flatMap(todo_col => todo_col.todos).map(todo => ({
+          todoId: todo.todo_id,
+          todoValue: todo.todo_value,
+          todoCompleted: todo.todo_completed,
+          todoOrder: todo.todo_order
+        })).sort((prev, next) => prev.todoOrder - next.todoOrder)
+      }
+    })
   }
 
   createTodo = async (request) => {
-    const { todoCompleted: todo_completed, todoValue: todo_value, userId: user_id } = request.body
-    const todo = await this.todos.create({
+    const {
+      todo: { todoCompleted: todo_completed, todoValue: todo_value, userId: user_id },
+      colId: col_id
+    } = request.body
+
+    const time = getTime()
+    const max = await this.getMaxOrder('todos', user_id)
+
+    const res = String(max) + time
+    const newOrder = Number(res)
+
+    const { todo_id } = await this.todos.create({
       data: {
         todo_completed,
         todo_value,
+        todo_order: newOrder,
         user_id
       }
     })
 
-    return todo.todo_id
+    await this.todos_cols.create({
+      data: {
+        todo_id,
+        col_id
+      }
+    })
+
+    return todo_id
+  }
+
+  createCol = async (request) => {
+    const { colName: col_name, userId: user_id } = request.body
+
+    const max = await this.getMaxOrder('cols', user_id)
+    const time = getTime()
+    const res = String(max) + time
+
+    const newOrder = Number(res)
+
+    const { col_id } = await this.cols.create({
+      data: {
+        col_name,
+        col_order: newOrder,
+        user_id
+      }
+    })
+
+    return col_id
+  }
+
+  updateCol = async (request) => {
+    const body = request.body
+    const { id } = request.params
+
+    let start = null
+    let finish = null
+
+    if (body.sourceCol) {
+      const re = await this.cols.findUnique({
+        where: {
+          col_id: body.sourceCol.colId
+        }
+      })
+
+      start = re
+    }
+
+    if (body.destinationCol) {
+      const re = await this.cols.findUnique({
+        where: {
+          col_id: body.destinationCol.colId
+        }
+      })
+
+      finish = re
+    }
+
+
+    const newOrder = getNewOrder(start, finish, 'col_order')
+
+    await this.cols.update({
+      where: { col_id: id },
+      data: { col_order: newOrder }
+    })
   }
 
   updateTodo = async (request) => {
@@ -84,10 +200,54 @@ class DataBase {
     })
   }
 
+  updateTodoOrder = async (request) => {
+    const body = request.body
+    const { id } = request.params
+
+    let start = null
+    let finish = null
+
+    if (body.sourceTodo) {
+      start = await this.todos.findUnique({
+        where: {
+          todo_id: body.sourceTodo.todoId
+        }
+      })
+    }
+
+    if (body.destinationTodo) {
+      finish = await this.todos.findUnique({
+        where: {
+          todo_id: body.destinationTodo.todoId
+        }
+      })
+    }
+
+    const newOrder = getNewOrder(start, finish, 'todo_order')
+
+    await this.todos.update({
+      where: { todo_id: id },
+      data: { todo_order: newOrder }
+    })
+
+    await this.todos_cols.updateMany({
+      where: { todo_id: id },
+      data: { col_id: body.colId }
+    })
+  }
+
   deleteTodo = async (request) => {
+    const todoId = request.params.id
+
+    await this.todos_cols.deleteMany({
+      where: {
+        todo_id: todoId
+      }
+    })
+
     await this.todos.delete({
       where: {
-        todo_id: request.params.id
+        todo_id: todoId
       }
     })
   }

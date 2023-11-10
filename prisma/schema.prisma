@@ -7,6 +7,15 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model cols {
+  col_id    String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  col_name  String      @db.VarChar(100)
+  user_id   String?     @db.Uuid
+  col_order Decimal     @default(1.0) @db.Decimal
+  users     users?      @relation(fields: [user_id], references: [user_id], onUpdate: NoAction, map: "fk_cols_user_id")
+  todo_cols todo_cols[]
+}
+
 model refresh_tokens {
   refresh_token String   @id
   user_id       String   @db.Uuid
@@ -14,13 +23,23 @@ model refresh_tokens {
   users         users    @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
 }
 
+model todo_cols {
+  todo_cols_id String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  todo_id      String @db.Uuid
+  col_id       String @db.Uuid
+  cols         cols   @relation(fields: [col_id], references: [col_id], onDelete: NoAction, onUpdate: NoAction)
+  todos        todos  @relation(fields: [todo_id], references: [todo_id], onDelete: NoAction, onUpdate: NoAction)
+}
+
 model todos {
-  todo_id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  user_id        String   @db.Uuid
+  todo_id        String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id        String      @db.Uuid
   todo_value     String
   todo_completed Boolean
-  createdat      DateTime @default(now()) @db.Timestamp(6)
-  users          users    @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  createdat      DateTime    @default(now()) @db.Timestamp(6)
+  todo_order     Decimal     @default(1.0) @db.Decimal
+  todo_cols      todo_cols[]
+  users          users       @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -33,6 +52,7 @@ model users {
   user_age       Int
   user_gender    String           @db.VarChar(10)
   user_site      String           @db.VarChar(250)
+  cols           cols[]
   refresh_tokens refresh_tokens[]
   todos          todos[]
 }
