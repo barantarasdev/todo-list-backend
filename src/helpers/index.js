@@ -1,30 +1,48 @@
 const jwt = require('jsonwebtoken')
-const { ACCESS_TOKEN_EXPIRES, REFRESH_TOKEN_EXPIRES } = require('../constants')
+const {
+  ACCESS_TOKEN_EXPIRES,
+  REFRESH_TOKEN_EXPIRES,
+  NEW_ORDER_STEP,
+} = require('../constants')
 
 function generateAccessToken(user) {
-  return jwt.sign(user, process.env.ACCESS_SECRET_KEY, { expiresIn: ACCESS_TOKEN_EXPIRES })
+  return jwt.sign(user, process.env.ACCESS_SECRET_KEY, {
+    expiresIn: ACCESS_TOKEN_EXPIRES,
+  })
 }
 
 function generateRefreshToken(user) {
-  return jwt.sign(user, process.env.REFRESH_SECRET_KEY, { expiresIn: REFRESH_TOKEN_EXPIRES })
+  return jwt.sign(user, process.env.REFRESH_SECRET_KEY, {
+    expiresIn: REFRESH_TOKEN_EXPIRES,
+  })
 }
 
-function toCamelCase(str) {
-  return str.replace(/_([a-z])/g, (g) => g[1].toUpperCase())
-}
+function getNewOrder(start, finish, key) {
+  let newOrder
 
-function convertKeysToCamelCase(obj) {
-  const newObj = {}
-
-  for (const key of Object.keys(obj)) {
-    newObj[toCamelCase(key)] = obj[key]
+  if (!start && finish) {
+    newOrder = +finish[key] - NEW_ORDER_STEP
+  } else if (start && !finish) {
+    newOrder = +start[key] + NEW_ORDER_STEP
+  } else if (!start && !finish) {
+    newOrder = NEW_ORDER_STEP
+  } else {
+    newOrder = (+start[key] + +finish[key]) / 2
   }
-  return newObj
+
+  return newOrder
 }
 
+function getTime() {
+  const timestamp = new Date().getTime()
+  const timestampString = timestamp.toString()
+
+  return timestampString.slice(-4)
+}
 
 module.exports = {
+  getTime,
+  getNewOrder,
   generateAccessToken,
   generateRefreshToken,
-  convertKeysToCamelCase
 }
