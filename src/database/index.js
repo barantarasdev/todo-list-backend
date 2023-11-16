@@ -1,5 +1,5 @@
 const { PrismaClient } = require('@prisma/client')
-const { getTime, getNewOrder } = require('../helpers')
+const { getNewOrder, getTime } = require('../helpers')
 
 class DataBase {
   constructor() {
