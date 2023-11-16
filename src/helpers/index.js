@@ -1,8 +1,8 @@
 const jwt = require('jsonwebtoken')
 const {
   ACCESS_TOKEN_EXPIRES,
-  REFRESH_TOKEN_EXPIRES,
   NEW_ORDER_STEP,
+  REFRESH_TOKEN_EXPIRES,
 } = require('../constants')
 
 function generateAccessToken(user) {
