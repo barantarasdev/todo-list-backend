@@ -1,6 +1,12 @@
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
-const { statusCode201, statusCode401, statusCode200, statusCode403, statusCode404 } = require('../statusCodes')
+const {
+  statusCode201,
+  statusCode401,
+  statusCode200,
+  statusCode403,
+  statusCode404,
+} = require('../statusCodes')
 const { SALT_ROUNDS } = require('../constants')
 const { generateAccessToken, generateRefreshToken } = require('../helpers')
 const db = require('../database')
@@ -12,36 +18,43 @@ exports.handleRefresh = (request, reply) => {
     return statusCode401(reply)
   }
 
-  jwt.verify(currentRefreshToken, process.env.REFRESH_SECRET_KEY, async (err, user) => {
-    if (err) {
-      return statusCode403(reply)
+  jwt.verify(
+    currentRefreshToken,
+    process.env.REFRESH_SECRET_KEY,
+    async (err, user) => {
+      if (err) {
+        return statusCode403(reply)
+      }
+
+      const verifiedToken = await db.verifyRefreshToken(request)
+
+      if (!verifiedToken) {
+        return statusCode403(reply)
+      }
+
+      const newUser = { userName: user.user_name, userId: user.user_id }
+      const accessToken = generateAccessToken(newUser)
+      const refreshToken = generateRefreshToken(newUser)
+
+      await db.deleteRefreshToken(request)
+      await db.createRefreshToken(accessToken, newUser.userId)
+
+      return statusCode200(reply, { refreshToken, accessToken })
     }
-
-    const verifiedToken = await db.verifyRefreshToken(request)
-
-    if (!verifiedToken) {
-      return statusCode403(reply)
-    }
-
-    const newUser = { userName: user.user_name, userId: user.user_id }
-    const accessToken = generateAccessToken(newUser)
-    const refreshToken = generateRefreshToken(newUser)
-
-    await db.deleteRefreshToken(request)
-    await db.createRefreshToken(accessToken, newUser.userId)
-
-    return statusCode200(reply, { refreshToken, accessToken })
-  })
+  )
 }
 
 exports.handleRegister = async (request, reply) => {
-  const user = await db.getUser(request)
+  const user = await db.getUser(request.body.userEmail)
 
   if (user) {
     return statusCode404(reply)
   }
 
-  const hashedPassword = await bcrypt.hash(request.body.userPassword, SALT_ROUNDS)
+  const hashedPassword = await bcrypt.hash(
+    request.body.userPassword,
+    SALT_ROUNDS
+  )
   const newUser = { ...request.body, userPassword: hashedPassword }
   const accessToken = generateAccessToken(newUser)
   const userId = await db.createUser(newUser)
@@ -53,13 +66,16 @@ exports.handleRegister = async (request, reply) => {
 }
 
 exports.handleLogin = async (request, reply) => {
-  const user = await db.getUser(request)
+  const user = await db.getUser(request.body.userEmail)
 
   if (!user) {
     return statusCode401(reply)
   }
 
-  const isMatch = await bcrypt.compare(request.body.userPassword, user.user_password)
+  const isMatch = await bcrypt.compare(
+    request.body.userPassword,
+    user.user_password
+  )
 
   if (!isMatch) {
     return statusCode401(reply)
@@ -75,12 +91,18 @@ exports.handleLogin = async (request, reply) => {
     accessToken,
     refreshToken,
     userName,
-    userId
+    userId,
   })
 }
 
 exports.handleLogout = async (request, reply) => {
   await db.deleteRefreshToken(request)
+
+  return statusCode200(reply)
+}
+
+exports.handleInviteFriend = async (request, reply) => {
+  await db.inviteFriend(request)
 
   return statusCode200(reply)
 }

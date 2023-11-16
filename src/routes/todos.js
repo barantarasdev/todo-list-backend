@@ -2,21 +2,24 @@ const {
   handleCreateTodo,
   handleUpdateTodo,
   handleDeleteTodo,
-  handleUpdateTodoOrder
+  handleUpdateTodoOrder,
 } = require('../controllers/todos')
 const { verifyToken, todoSchema } = require('../middlewares')
 
-module.exports = function(fastify, options, done) {
+module.exports = function (fastify, _, done) {
   fastify.addHook('preHandler', verifyToken)
 
-  fastify.register((app, _, done) => {
-    app.post('/', { schema: todoSchema }, handleCreateTodo)
-    app.post('/:id/updateOrder', handleUpdateTodoOrder)
-    app.patch('/:id', { schema: todoSchema }, handleUpdateTodo)
-    app.delete('/:id', handleDeleteTodo)
+  fastify.register(
+    (app, _, done) => {
+      app.post('/', { schema: todoSchema }, handleCreateTodo)
+      app.post('/:id/updateOrder', handleUpdateTodoOrder)
+      app.patch('/:id', { schema: todoSchema }, handleUpdateTodo)
+      app.delete('/:id', handleDeleteTodo)
 
-    done()
-  }, { prefix: '/todos' })
+      done()
+    },
+    { prefix: '/todos' }
+  )
 
   done()
 }

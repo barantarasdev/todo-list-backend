@@ -7,24 +7,23 @@ class DataBase {
     this.todos = this.db.todos
     this.users = this.db.users
     this.refresh_tokens = this.db.refresh_tokens
-    this.todos_cols = this.db.todo_cols
-    this.cols = this.db.cols
+    this.columns = this.db.columns
+    this.friendship = this.db.friendship
+    this.boards = this.db.boards
   }
 
-  getUser = async (request) => {
-    const user = await this.users.findUnique({
+  getUser = async (userEmail) => {
+    return await this.users.findUnique({
       where: {
-        user_email: request.body.userEmail,
+        user_email: userEmail,
       },
     })
-
-    return user
   }
 
-  getMaxOrder = async (entityType, userId) => {
+  getMaxOrder = async (entityType, board_id) => {
     const result = await this[entityType].aggregate({
       where: {
-        user_id: userId,
+        board_id: board_id,
       },
       _max: {
         [`${entityType.slice(0, -1)}_order`]: true,
@@ -35,69 +34,149 @@ class DataBase {
   }
 
   createUser = async (data) => {
-    const {
-      userName: user_name,
-      userEmail: user_email,
-      userPassword: user_password,
-      userPhone: user_phone,
-      userAge: user_age,
-      userGender: user_gender,
-      userSite: user_site,
-    } = data
     const user = await this.users.create({
       data: {
-        user_name,
-        user_email,
-        user_password,
-        user_phone,
-        user_age,
-        user_gender,
-        user_site,
+        user_name: data.userName,
+        user_email: data.userEmail,
+        user_password: data.userPassword,
+        user_phone: data.userPhone,
+        user_age: data.userAge,
+        user_gender: data.userGender,
+        user_site: data.userSite,
       },
     })
 
     return user.user_id
   }
 
-  getCols = async (request) => {
-    const res = await this.cols.findMany({
+  getBoards = async (request) => {
+    const { id } = request.params
+
+    const friendBoards = await this.friendship.findMany({
       where: {
-        user_id: request.params.id,
+        friend_id: id,
       },
-      orderBy: {
-        col_order: 'asc',
-      },
-      include: {
-        todo_cols: {
-          include: {
-            todos: {
-              select: {
-                todo_id: true,
-                todo_value: true,
-                todo_completed: true,
-                todo_order: true,
-              },
-            },
-          },
-        },
+      select: {
+        board_id: true,
       },
     })
 
-    return res.map(({ col_id, col_name, col_order, todo_cols }) => {
+    const boardIds = friendBoards.map((f) => f.board_id)
+
+    const boards = await this.boards.findMany({
+      where: {
+        OR: [{ user_id: id }, { board_id: { in: boardIds } }],
+      },
+    })
+
+    return boards.map(({ board_name, board_id, user_id }) => ({
+      boardName: board_name,
+      boardId: board_id,
+      userId: user_id,
+    }))
+  }
+
+  createBoard = async (request) => {
+    const { boardName: board_name } = request.body
+    const { id: user_id } = request.params
+
+    const { board_id } = await this.boards.create({
+      data: {
+        board_name,
+        user_id,
+      },
+    })
+
+    return board_id
+  }
+
+  getColumns = async (request) => {
+    const { id } = request.params
+
+    const columns = await this.columns.findMany({
+      where: {
+        board_id: id,
+      },
+      orderBy: {
+        column_order: 'asc',
+      },
+    })
+
+    const todos = await this.todos.findMany({
+      where: {
+        board_id: id,
+      },
+      orderBy: {
+        todo_order: 'asc',
+      },
+    })
+
+    return columns.map(({ column_id, column_name, board_id }) => {
+      const columnTodos = todos
+        .filter((todo) => todo.column_id === column_id)
+        .map(({ todo_id, todo_value, todo_completed }) => ({
+          todoId: todo_id,
+          todoValue: todo_value,
+          todoCompleted: todo_completed,
+        }))
+
       return {
-        columnId: col_id,
-        columnName: col_name,
-        columnOrder: col_order,
-        todos: todo_cols
-          .flatMap((todo_col) => todo_col.todos)
-          .map((todo) => ({
-            todoId: todo.todo_id,
-            todoValue: todo.todo_value,
-            todoCompleted: todo.todo_completed,
-            todoOrder: todo.todo_order,
-          }))
-          .sort((prev, next) => prev.todoOrder - next.todoOrder),
+        columnId: column_id,
+        columnName: column_name,
+        todos: columnTodos,
+        boardId: board_id,
       }
+    })
+  }
+
+  createColumn = async (request) => {
+    const { columnName: column_name, boardId: board_id } = request.body
+
+    const max = await this.getMaxOrder('columns', board_id)
+    const time = getTime()
+    const res = String(max) + time
+
+    const newOrder = Number(res)
+
+    const { column_id } = await this.columns.create({
+      data: {
+        column_name,
+        column_order: newOrder,
+        board_id,
+      },
+    })
+
+    return column_id
+  }
+
+  updateColumnOrder = async (request) => {
+    const body = request.body
+    const { id } = request.params
+
+    let start = null
+    let finish = null
+
+    if (body.sourceColumn) {
+      start = await this.columns.findUnique({
+        where: {
+          column_id: body.sourceColumn.columnId,
+        },
+      })
+    }
+
+    if (body.destinationColumn) {
+      finish = await this.columns.findUnique({
+        where: {
+          column_id: body.destinationColumn.columnId,
+        },
+      })
+    }
+
+    const newOrder = getNewOrder(start, finish, 'column_order')
+
+    await this.columns.update({
+      where: { column_id: id },
+      data: { column_order: newOrder },
     })
   }
 
@@ -106,85 +185,28 @@ class DataBase {
       todo: {
         todoCompleted: todo_completed,
         todoValue: todo_value,
-        userId: user_id,
+        boardId: board_id,
+        columnId: column_id,
       },
-      columnId: col_id,
     } = request.body
 
     const time = getTime()
-    const max = await this.getMaxOrder('todos', user_id)
+    const max = await this.getMaxOrder('todos', board_id)
 
     const res = String(max) + time
     const newOrder = Number(res)
 
     const { todo_id } = await this.todos.create({
       data: {
+        column_id,
         todo_completed,
         todo_value,
         todo_order: newOrder,
-        user_id,
-      },
-    })
-
-    await this.todos_cols.create({
-      data: {
-        todo_id,
-        col_id,
+        board_id,
       },
     })
 
     return todo_id
-  }
-
-  createCol = async (request) => {
-    const { columnName: col_name, userId: user_id } = request.body
-
-    const max = await this.getMaxOrder('cols', user_id)
-    const time = getTime()
-    const res = String(max) + time
-
-    const newOrder = Number(res)
-
-    const { col_id } = await this.cols.create({
-      data: {
-        col_name,
-        col_order: newOrder,
-        user_id,
-      },
-    })
-
-    return col_id
-  }
-
-  updateCol = async (request) => {
-    const body = request.body
-    const { id } = request.params
-
-    let start = null
-    let finish = null
-
-    if (body.sourceColumn) {
-      start = await this.cols.findUnique({
-        where: {
-          col_id: body.sourceColumn.columnId,
-        },
-      })
-    }
-
-    if (body.destinationColumn) {
-      finish = await this.cols.findUnique({
-        where: {
-          col_id: body.destinationColumn.columnId,
-        },
-      })
-    }
-
-    const newOrder = getNewOrder(start, finish, 'col_order')
-
-    await this.cols.update({
-      where: { col_id: id },
-      data: { col_order: newOrder },
-    })
   }
 
   updateTodo = async (request) => {
@@ -198,6 +220,14 @@ class DataBase {
       data: {
         todo_value,
         todo_completed,
+      },
+    })
+  }
+
+  deleteTodo = async (request) => {
+    await this.todos.delete({
+      where: {
+        todo_id: request.params.id,
       },
     })
   }
@@ -229,37 +259,38 @@ class DataBase {
 
     await this.todos.update({
       where: { todo_id: id },
-      data: { todo_order: newOrder },
-    })
-
-    await this.todos_cols.updateMany({
-      where: { todo_id: id },
-      data: { col_id: body.columnId },
+      data: { todo_order: newOrder, column_id: body.columnId },
     })
   }
 
-  deleteTodo = async (request) => {
-    const todoId = request.params.id
+  inviteFriend = async (request) => {
+    const { friendEmail, userId, boardId } = request.body
 
-    await this.todos_cols.deleteMany({
-      where: {
-        todo_id: todoId,
-      },
-    })
+    const user = await this.getUser(friendEmail)
 
-    await this.todos.delete({
-      where: {
-        todo_id: todoId,
+    if (!user) {
+      return
+    }
+
+    await this.friendship.create({
+      data: {
+        friend_id: user.user_id,
+        user_id: userId,
+        board_id: boardId,
       },
     })
   }
 
   deleteRefreshToken = async (request) => {
-    await this.refresh_tokens.delete({
-      where: {
-        refresh_token: request.body.refreshToken,
-      },
-    })
+    try {
+      await this.refresh_tokens.delete({
+        where: {
+          refresh_token: request.body.refreshToken,
+        },
+      })
+    } catch (error) {
+      console.error(error)
+    }
   }
 
   createRefreshToken = async (refresh_token, user_id) => {

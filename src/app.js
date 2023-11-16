@@ -5,12 +5,12 @@ fastify.register(require('@fastify/cors'), {
   origin: process.env.ALLOW_URL,
   methods: ['POST', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  preflightContinue: true
+  preflightContinue: true,
 })
 
 fastify.register(require('./routes/user'))
 fastify.register(require('./routes/todos'))
-fastify.register(require('./routes/cols'))
+fastify.register(require('./routes/columns'))
 
 fastify.listen({ port: process.env.PORT }, (err) => {
   if (err) {
