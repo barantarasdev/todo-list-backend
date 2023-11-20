@@ -7,13 +7,31 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model boards {
+  board_id   String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  board_name String       @db.VarChar(100)
+  user_id    String?      @db.Uuid
+  users      users?       @relation(fields: [user_id], references: [user_id], onUpdate: NoAction, map: "fk_cols_user_id")
+  columns    columns[]
+  friendship friendship[]
+}
+
 model columns {
   column_id    String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   column_name  String  @db.VarChar(100)
   column_order Decimal @default(1.0) @db.Decimal
   board_id     String  @db.Uuid
-  todos        todos[]
   boards       boards  @relation(fields: [board_id], references: [board_id], onDelete: NoAction, onUpdate: NoAction)
+  todos        todos[]
+}
+
+model friendship {
+  friendship_id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String @db.Uuid
+  friend_id     String @db.Uuid
+  board_id      String @db.Uuid
+  boards        boards @relation(fields: [board_id], references: [board_id], onDelete: NoAction, onUpdate: NoAction)
+  users         users  @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model refresh_tokens {
@@ -24,12 +42,10 @@ model refresh_tokens {
 
 model todos {
   todo_id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  board_id        String  @db.Uuid
   column_id      String  @db.Uuid
   todo_value     String
   todo_completed Boolean
   todo_order     Decimal @default(1.0) @db.Decimal
-  boards          boards   @relation(fields: [board_id], references: [board_id], onDelete: NoAction, onUpdate: NoAction)
   columns        columns @relation(fields: [column_id], references: [column_id], onDelete: NoAction, onUpdate: NoAction)
 }
 
@@ -42,26 +58,7 @@ model users {
   user_age       Int
   user_gender    String           @db.VarChar(10)
   user_site      String           @db.VarChar(250)
-  refresh_tokens refresh_tokens[]
-  friendship     friendship[]
   boards         boards[]
-}
-
-model boards {
-  board_id   String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  board_name String       @db.VarChar(100)
-  user_id    String?      @db.Uuid
-  friendship friendship[]
-  columns    columns[]
-  todos          todos[]
-  users      users?       @relation(fields: [user_id], references: [user_id], onUpdate: NoAction, map: "fk_cols_user_id")
-}
-
-model friendship {
-  friendship_id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id       String @db.Uuid
-  friend_id     String @db.Uuid
-  board_id      String @db.Uuid
-  users         users  @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
-  boards        boards @relation(fields: [board_id], references: [board_id], onDelete: NoAction, onUpdate: NoAction)
+  friendship     friendship[]
+  refresh_tokens refresh_tokens[]
 }
