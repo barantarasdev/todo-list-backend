@@ -100,7 +100,7 @@ export class DatabaseService extends PrismaClient implements OnModuleInit {
   }
 
   async getAllowsSocketsIds(
-    user_id: string,
+    userId: string,
     board_id: string,
   ): Promise<string[]> {
     const friendships = await this.friendship.findMany({
@@ -118,7 +118,7 @@ export class DatabaseService extends PrismaClient implements OnModuleInit {
     })
 
     return users
-      .filter((user) => user.user_id !== user_id)
+      .filter((user) => user.user_id !== userId)
       .map(({ socket_id }) => socket_id)
   }
 
