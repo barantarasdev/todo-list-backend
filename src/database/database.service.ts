@@ -26,7 +26,7 @@ export class DatabaseService extends PrismaClient implements OnModuleInit {
       },
     })
 
-    return Number(result._max.column_order) + 1.0 || 1.0
+    return Number(result._max.column_order) || 1.0
   }
 
   async getMaxOrderTodos(column_id: string): Promise<number> {
@@ -39,7 +39,7 @@ export class DatabaseService extends PrismaClient implements OnModuleInit {
       },
     })
 
-    return Number(result._max.todo_order) + 1.0 || 1.0
+    return Number(result._max.todo_order) || 1.0
   }
 
   async createUserDB(data: Omit<users, 'user_id'>): Promise<users> {
@@ -59,6 +59,13 @@ export class DatabaseService extends PrismaClient implements OnModuleInit {
       where: {
         user_id,
       },
+    })
+  }
+
+  async updateSocketId(user_id: string, socket_id: string): Promise<void> {
+    await this.users.update({
+      where: { user_id },
+      data: { socket_id },
     })
   }
 
@@ -90,6 +97,29 @@ export class DatabaseService extends PrismaClient implements OnModuleInit {
       boardId: board_id,
       boardName: board_name,
     }))
+  }
+
+  async getAllowsSocketsIds(
+    user_id: string,
+    board_id: string,
+  ): Promise<string[]> {
+    const friendships = await this.friendship.findMany({
+      where: { board_id },
+      select: { user_id: true, friend_id: true },
+    })
+
+    const allUserIds = new Set(
+      friendships.flatMap(({ user_id, friend_id }) => [user_id, friend_id]),
+    )
+
+    const users = await this.users.findMany({
+      where: { user_id: { in: Array.from(allUserIds) } },
+      select: { socket_id: true, user_id: true },
+    })
+
+    return users
+      .filter((user) => user.user_id !== user_id)
+      .map(({ socket_id }) => socket_id)
   }
 
   async createBoardDB(data: Omit<boards, 'board_id'>): Promise<boards> {
@@ -158,8 +188,8 @@ export class DatabaseService extends PrismaClient implements OnModuleInit {
     return await this.todos.create({ data })
   }
 
-  async updateTodoDB(todo_id: string, data: unknown): Promise<void> {
-    await this.todos.update({
+  async updateTodoDB(todo_id: string, data: unknown): Promise<todos> {
+    return await this.todos.update({
       where: {
         todo_id,
       },
@@ -167,8 +197,8 @@ export class DatabaseService extends PrismaClient implements OnModuleInit {
     })
   }
 
-  async deleteTodoDB(todo_id: string): Promise<void> {
-    await this.todos.delete({ where: { todo_id } })
+  async deleteTodoDB(todo_id: string): Promise<todos> {
+    return await this.todos.delete({ where: { todo_id } })
   }
 
   async getFriendshipDB(

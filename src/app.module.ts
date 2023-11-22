@@ -4,6 +4,7 @@ import { AuthModule } from './auth/auth.module'
 import { BoardsModule } from './boards/boards.module'
 import { ColumnsModule } from './columns/columns.module'
 import { TodosModule } from './todos/todos.module'
+import { GatewayModule } from './gateway/gateway.module'
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { TodosModule } from './todos/todos.module'
     BoardsModule,
     ColumnsModule,
     TodosModule,
+    GatewayModule,
   ],
 })
 export class AppModule {}

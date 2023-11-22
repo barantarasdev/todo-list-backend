@@ -71,6 +71,7 @@ export class AuthService {
       user_phone: dto.userPhone,
       user_password: hashedPassword,
       user_site: dto.userSite,
+      socket_id: '',
     }
     const { user_id: userId, user_email } =
       await this.databaseService.createUserDB(user)

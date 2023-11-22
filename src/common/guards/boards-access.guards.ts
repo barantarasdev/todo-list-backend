@@ -21,7 +21,6 @@ export class BoardAccessGuard implements CanActivate {
       board.user_id !== sub && friend && board.user_id !== friend.user_id
 
     if (isError) {
-      console.log(12)
       throw new UnauthorizedException()
     }
 
