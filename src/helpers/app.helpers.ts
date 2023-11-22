@@ -19,9 +19,9 @@ export function getNewOrder(
   return (start + finish) / 2
 }
 
-export function getTime(): string {
+export function getTime(): number {
   const timestamp = new Date().getTime()
   const timestampString = timestamp.toString()
 
-  return timestampString.slice(-4)
+  return Number(timestampString.slice(-2))
 }

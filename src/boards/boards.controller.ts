@@ -14,6 +14,7 @@ import { InviteFriendDto } from './dto/invite-friend.dto'
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { Request } from 'express'
 import { GetBoardsR } from 'src/types/app.types'
+import { updateSocketIdDto } from './dto/update-socket-id.dto'
 
 @ApiTags('Boards')
 @UseGuards(AccessTokenGuard)
@@ -47,5 +48,15 @@ export class BoardsController {
     @Body() dto: InviteFriendDto,
   ): Promise<void> {
     await this.boardsService.inviteFriend(boardId, req.user['sub'], dto)
+  }
+
+  @ApiOperation({ summary: 'Create socket id' })
+  @ApiResponse({ status: 200 })
+  @Post('/:boardId/updateSocketId')
+  async updateSocketId(
+    @Req() req: Request,
+    @Body() dto: updateSocketIdDto,
+  ): Promise<void> {
+    await this.boardsService.updateSocketId(req.user['sub'], dto)
   }
 }

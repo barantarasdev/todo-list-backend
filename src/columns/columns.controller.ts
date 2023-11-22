@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Param,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common'
 import { AccessTokenGuard } from 'src/common/guards/accessToken.guards'
@@ -15,6 +16,7 @@ import { BoardAccessGuard } from 'src/common/guards/boards-access.guards'
 import { UpdateColumnOrderDto } from './dto/update-column-order.dto'
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { GetColumnsR } from 'src/types/app.types'
+import { Request } from 'express'
 
 @ApiTags('Columns')
 @UseGuards(AccessTokenGuard, BoardAccessGuard)
@@ -33,10 +35,11 @@ export class ColumnsController {
   @ApiResponse({ status: 201, type: 'column_id' })
   @Post('/columns')
   createColumn(
+    @Req() req: Request,
     @Param('boardId') boardId: string,
     @Body() dto: CreateColumnDto,
   ): Promise<{ columnId: string }> {
-    return this.columnsService.createColumn(boardId, dto)
+    return this.columnsService.createColumn(req.user['sub'], boardId, dto)
   }
 
   @ApiOperation({ summary: 'Update column order' })
@@ -44,9 +47,10 @@ export class ColumnsController {
   @HttpCode(HttpStatus.OK)
   @Post('/columns/:columnId')
   updateColumnOrder(
+    @Req() req: Request,
     @Param('columnId') columnId: string,
     @Body() dto: UpdateColumnOrderDto,
   ): void {
-    this.columnsService.updateColumnOrder(columnId, dto)
+    this.columnsService.updateColumnOrder(req.user['sub'], columnId, dto)
   }
 }

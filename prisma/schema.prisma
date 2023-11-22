@@ -58,6 +58,7 @@ model users {
   user_age       Int
   user_gender    String           @db.VarChar(10)
   user_site      String           @db.VarChar(250)
+  socket_id      String?          @default("") @db.VarChar(100)
   boards         boards[]
   friendship     friendship[]
   refresh_tokens refresh_tokens[]
